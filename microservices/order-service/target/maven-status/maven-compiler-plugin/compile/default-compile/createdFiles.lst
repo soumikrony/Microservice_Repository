@@ -1,0 +1,13 @@
+com\example\order\OrderWorkflowClient.class
+com\example\order\OrderRecordRepository.class
+com\example\order\OrderController$CheckoutRequest.class
+com\example\order\InventoryHttpClient.class
+com\example\order\ClientConfig.class
+com\example\order\OrderController.class
+com\example\order\KafkaEventSchemas.class
+com\example\order\OrderServiceApplication.class
+com\example\order\OrderController$1.class
+com\example\order\CartHttpClient.class
+com\example\order\TraceIdFilter.class
+com\example\order\PaymentHttpClient.class
+com\example\order\OrderRecordEntity.class

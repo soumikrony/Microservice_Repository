@@ -1,0 +1,276 @@
+মাইক্রোসার্ভিসেস রানবুক
+=======================
+
+Location: C:\Softwares\Self Project\microservices
+Last updated: August 23, 2026
+
+প্রয়োজনীয় লোকাল সার্ভিস
+-----------------------
+
+- PostgreSQL: 5432
+- Redis/Memurai: 6379
+- Kafka: 9092
+- Schema Registry: 8084
+- API Gateway: 8090
+- Spring Cloud Config Server: 8888
+
+Spring Cloud Config Server
+--------------------------
+
+Central configuration রাখা আছে `config-repo` folder-এ। Docker-এ এটি app Compose
+এর সঙ্গে চালু হয়। পরীক্ষা করুন:
+
+  Invoke-WebRequest http://localhost:8888/actuator/health -UseBasicParsing
+  Invoke-WebRequest http://localhost:8888/api-gateway/default -UseBasicParsing
+
+প্রথম command-এ `UP` এবং দ্বিতীয় command-এ gateway configuration JSON পাওয়া উচিত।
+সব client service-এ `spring.config.import` থাকার কারণে startup-এর সময় Config
+Server থেকে properties নেওয়ার চেষ্টা করে; Config Server unavailable হলে local
+`application.properties` fallback হিসেবে থাকে।
+
+Redis version ও service চেক
+---------------------------
+
+Redis শুধু running কি না নয়, actual version-ও পরীক্ষা করুন:
+
+  Get-Service Redis,Memurai -ErrorAction SilentlyContinue
+  redis-cli -h 127.0.0.1 -p 6379 PING
+  redis-cli -h 127.0.0.1 -p 6379 INFO server | findstr "redis_version memurai_version"
+
+Expected:
+
+  PONG
+  redis_version:7.x
+
+শুধু `Redis Running` দেখালেই Redis 7 নিশ্চিত হয় না। Redis 7-compatible runtime
+চালু থাকলে `Memurai` Running এবং `redis_version`-এ 7.x দেখা উচিত। একই port-এ
+পুরোনো Redis এবং Memurai একসাথে চালাবেন না।
+
+Stop-Service Redis -Force
+Start-Service Memurai
+
+redis-cli -h 127.0.0.1 -p 6379 PING
+redis-cli -h 127.0.0.1 -p 6379 INFO server | findstr redis_version
+
+Kafka ও Schema Registry একসাথে চালানো
+--------------------------------------
+
+PowerShell-এ চালান:
+
+  Set-Location 'C:\cf83\confluent-8.3.1'
+  & 'C:\cf83\start-confluent-local.cmd'
+
+স্ক্রিপ্টটি Kafka আগে চালু করে, port 9092 ready হওয়া পর্যন্ত অপেক্ষা করে, তারপর
+Schema Registry চালু করে এবং port 8084 ready হওয়া পর্যন্ত অপেক্ষা করে।
+আগে থেকেই চালু থাকা service আবার start করে না। পুরোনো process ও stale KRaft
+deletion marker-ও পরিষ্কার করে।
+
+চেক করুন:
+
+  Test-NetConnection localhost -Port 9092
+  Test-NetConnection localhost -Port 8084
+  Invoke-WebRequest http://localhost:8084/subjects -UseBasicParsing
+
+Schema Registry চালু হলে /subjects থেকে JSON response পাওয়া যাবে।
+
+লগ:
+
+  C:\cf83\kafka-out.log
+  C:\cf83\kafka-err.log
+  C:\cf83\schema-registry-out.log
+  C:\cf83\schema-registry-err.log
+
+Microservices চালানো
+---------------------
+
+প্রজেক্ট ফোল্ডারে যান:
+
+  Set-Location 'C:\Softwares\Self Project\microservices'
+
+Build ও Docker services start:
+
+  mvn clean package -DskipTests
+  docker compose -f docker-compose.app.yml up --build -d
+
+Status দেখুন:
+
+  docker compose -f docker-compose.app.yml ps
+
+UI:
+
+  http://localhost:8090/
+
+কোনো service-এর log:
+
+  docker compose -f docker-compose.app.yml logs -f service-name
+
+উদাহরণ:
+
+  docker compose -f docker-compose.app.yml logs -f order-service
+
+Service restart:
+
+  docker compose -f docker-compose.app.yml restart service-name
+
+সব microservices বন্ধ:
+
+  docker compose -f docker-compose.app.yml down
+
+গুরুত্বপূর্ণ URL
+----------------
+
+- Gateway: http://localhost:8090/
+- Schema Registry: http://localhost:8084/subjects
+- Auth health: http://localhost:8081/actuator/health
+- Catalog health: http://localhost:8082/actuator/health
+- Inventory health: http://localhost:8083/actuator/health
+- Cart health: http://localhost:8085/actuator/health
+- Payment health: http://localhost:8086/actuator/health
+- Order health: http://localhost:8087/actuator/health
+- Notifications health: http://localhost:8088/actuator/health
+
+Prometheus, Grafana ও OpenTelemetry
+------------------------------------
+
+Prometheus এবং Grafana চালান:
+
+  docker compose -f docker-compose.monitoring.yml up -d
+
+তারপর microservices চালালে OTEL Collector-ও app Compose-এর সঙ্গে চালু হবে:
+
+  docker compose -f docker-compose.app.yml up --build -d
+
+Browser-এ দেখুন:
+
+  Prometheus: http://localhost:9090
+  Grafana: http://localhost:3000
+  Grafana username: admin
+  Grafana password: admin
+
+Prometheus-এর `Status -> Targets` খুলে সব target-এ `UP` দেখুন। Metrics পরীক্ষা
+করতে `http://localhost:8081/actuator/prometheus` অথবা
+`http://localhost:8090/actuator/prometheus` খুলুন। Prometheus query box-এ
+`http_server_requests_seconds_count` লিখে Execute করুন।
+
+Grafana-এ প্রথমবার `Connections -> Data sources -> Add data source -> Prometheus`
+নির্বাচন করে URL দিন `http://prometheus:9090`, তারপর `Save & test` চাপুন।
+Dashboard query হিসেবে ব্যবহার করতে পারেন:
+
+  rate(http_server_requests_seconds_count[1m])
+
+OTEL flow:
+
+  Spring Boot + Micrometer -> OTLP HTTP -> otel-collector:4318 -> Collector logs
+
+Collector log দেখুন:
+
+  docker logs -f shopsphere-otel-collector
+
+Docker Compose-এ OTLP metrics ও traces enable করা আছে। Eclipse-এ defaultভাবে
+এগুলো বন্ধ থাকে। Eclipse থেকে OTEL দেখতে চাইলে আগে Collector চালু করে Run
+Configuration-এর Environment-এ দিন:
+
+  OTEL_METRICS_EXPORT_ENABLED=true
+  OTEL_TRACES_EXPORT_ENABLED=true
+  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://localhost:4318/v1/metrics
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+
+Monitoring বন্ধ করতে:
+
+  docker compose -f docker-compose.monitoring.yml down
+
+GUI থেকে Monitoring control
+----------------------------
+
+GUI switch দিয়ে Prometheus, Grafana এবং OTEL Collector সত্যি start/stop করতে
+একটি নিরাপদ host-side controller চালাতে হবে। এটি শুধু `127.0.0.1:8767`-এ
+শুনবে এবং token ছাড়া কোনো command গ্রহণ করবে না। Administrator PowerShell
+প্রয়োজন নেই, তবে Docker Desktop চালু থাকতে হবে।
+
+PowerShell window-এ চালান:
+
+  Set-Location 'C:\Softwares\Self Project\microservices'
+  $env:SHOPSPHERE_MONITORING_TOKEN='change-this-to-a-long-random-token'
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\monitoring-controller.ps1
+
+`running scripts is disabled` error এলে এই `Bypass` command-টিই ব্যবহার করুন।
+এটি Windows-এর স্থায়ী execution policy পরিবর্তন করে না। চাইলে শুধু নিজের user
+account-এর জন্য একবার অনুমতি দিতে পারেন:
+
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+তারপর GUI খুলে Monitoring Controls section-এ একই token লিখুন। Switch ON করলে
+controller Docker Compose দিয়ে service চালু করবে; OFF করলে সেই container stop
+করবে। Browser বন্ধ করলে controller বন্ধ হয় না; controller বন্ধ করতে তার
+PowerShell window-এ `Ctrl+C` চাপুন।
+
+নিরাপত্তা: controller-টি কেবল loopback address-এ bind করা এবং token-protected।
+Token কখনও source code বা public network-এ রাখবেন না।
+
+Eclipse থেকে চালালে
+-------------------
+
+আগে PostgreSQL, Redis, Kafka, Schema Registry এবং Config Server চালু করুন।
+Config Server আলাদা terminal-এ চালানোর command:
+
+  mvn -pl config-server spring-boot:run
+
+Eclipse-এ Maven
+project import করুন:
+
+  C:\Softwares\Self Project\microservices
+
+প্রয়োজনীয় environment values:
+
+  SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/postgres
+  SPRING_DATASOURCE_USERNAME=postgres
+  SPRING_DATASOURCE_PASSWORD=12345
+  SPRING_REDIS_HOST=localhost
+  SPRING_REDIS_PORT=6379
+  SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+  SCHEMA_REGISTRY_URL=http://localhost:8084
+  CONFIG_SERVER_URL=http://localhost:8888
+
+সমস্যা হলে
+----------
+
+Port check:
+
+  netstat -ano | findstr :5432
+  netstat -ano | findstr :6379
+  netstat -ano | findstr :9092
+  netstat -ano | findstr :8084
+
+Kafka বা Schema Registry আগে থেকেই চালু থাকলে আবার start করার দরকার নেই।
+Combined command চালালে এটি running service reuse করবে।
+
+বন্ধ করার নিয়ম
+--------------
+
+  docker compose -f docker-compose.app.yml down
+
+তারপর প্রয়োজন হলে Kafka/Schema Registry-এর terminal বন্ধ করুন। PostgreSQL ও
+Redis Windows service হিসেবে চললে সেগুলো আলাদা করে বন্ধ করার দরকার নেই।
+Eureka Service Discovery
+========================
+
+এই project-এ Eureka Server service registry হিসেবে কাজ করে। সব Spring Boot
+service startup-এর সময় নিজের নাম ও address Eureka-তে register করে। Gateway
+business request-এর জন্য lb://service-name ব্যবহার করে Eureka থেকে service
+instance খুঁজে নেয়।
+
+Docker Compose-এ Eureka চালু/পরীক্ষা:
+  docker compose -f docker-compose.app.yml up -d --build eureka-server
+  Invoke-WebRequest http://localhost:8761/actuator/health -UseBasicParsing
+  Start-Process http://localhost:8761
+
+সব service Eureka-সহ চালু করুন:
+  docker compose -f docker-compose.app.yml up -d --build
+
+Registration দেখুন:
+  (Invoke-WebRequest http://localhost:8761/eureka/apps -Headers @{Accept='application/json'} -UseBasicParsing).Content
+
+উপরের output-এ AUTH-SERVICE, CATALOG-SERVICE, INVENTORY-SERVICE, CART-SERVICE,
+PAYMENT-SERVICE, ORDER-SERVICE, NOTIFICATIONS-SERVICE এবং API-GATEWAY দেখা উচিত।
+Eureka বন্ধ করতে পুরো Compose application বন্ধ করুন:
+  docker compose -f docker-compose.app.yml down

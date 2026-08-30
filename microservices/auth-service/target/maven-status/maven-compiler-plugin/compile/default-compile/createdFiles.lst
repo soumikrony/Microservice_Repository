@@ -1,0 +1,8 @@
+com\example\auth\AuthUser.class
+com\example\auth\DatabaseUserDetailsService.class
+com\example\auth\TraceIdFilter.class
+com\example\auth\AuthUserRepository.class
+com\example\auth\SecurityConfig.class
+com\example\auth\LoginRequest.class
+com\example\auth\AuthController.class
+com\example\auth\AuthServiceApplication.class

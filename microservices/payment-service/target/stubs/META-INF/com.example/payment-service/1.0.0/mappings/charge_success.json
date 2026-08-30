@@ -1,0 +1,30 @@
+{
+  "id" : "1a3ea1bf-af1e-4798-b111-2499200c8ace",
+  "request" : {
+    "url" : "/api/payments/charge",
+    "method" : "POST",
+    "headers" : {
+      "Content-Type" : {
+        "matches" : "application/json.*"
+      }
+    },
+    "bodyPatterns" : [ {
+      "matchesJsonPath" : "$[?(@.['orderId'] == 'ORD-CONTRACT-001')]"
+    }, {
+      "matchesJsonPath" : "$[?(@.['userId'] == 'alice')]"
+    }, {
+      "matchesJsonPath" : "$[?(@.['amount'] == 99.5)]"
+    }, {
+      "matchesJsonPath" : "$[?(@.['paymentMethod'] == 'CARD')]"
+    } ]
+  },
+  "response" : {
+    "status" : 200,
+    "body" : "{\"status\":\"APPROVED\",\"orderId\":\"ORD-CONTRACT-001\",\"amount\":99.5,\"transactionId\":\"TXN-12345\"}",
+    "headers" : {
+      "Content-Type" : "application/json"
+    },
+    "transformers" : [ "response-template", "spring-cloud-contract" ]
+  },
+  "uuid" : "1a3ea1bf-af1e-4798-b111-2499200c8ace"
+}

@@ -1,0 +1,585 @@
+ShopSphere Microservices
+JWT Authentication এবং Role-Based Authorization
+সহজ বাংলা নোট
+
+============================================================
+১. এই project-এ authentication কী?
+============================================================
+
+Authentication মানে:
+
+"এই user সত্যিই কে?"
+
+Authorization মানে:
+
+"এই user কোন কাজ করতে পারবে?"
+
+এই project-এ:
+
+- Authentication করে auth-service
+- JWT token তৈরি করে auth-service
+- JWT যাচাই করে api-gateway
+- Role দেখে request অনুমোদন বা বাতিল করে api-gateway
+- তারপর gateway request-টি সঠিক microservice-এ পাঠায়
+
+সহজ flow:
+
+Browser
+   |
+   | username + password
+   v
+api-gateway
+   |
+   | POST /auth/token
+   v
+auth-service
+   |
+   | PostgreSQL থেকে user ও role পড়ে
+   | password যাচাই করে
+   | JWT token তৈরি করে
+   v
+Browser token পায়
+   |
+   | Authorization: Bearer <JWT>
+   v
+api-gateway JWT যাচাই করে
+   |
+   | role অনুযায়ী অনুমতি দেয়
+   v
+সঠিক microservice
+
+
+============================================================
+২. User কোথায় রাখা আছে?
+============================================================
+
+User PostgreSQL-এর auth_users table-এ রাখা আছে।
+
+যে code user database থেকে পড়ে:
+
+auth-service/src/main/java/com/example/auth/DatabaseUserDetailsService.java
+
+মূল method:
+
+loadUserByUsername(String username)
+
+এই method:
+
+১. PostgreSQL থেকে username দিয়ে user খোঁজে
+২. password নেয়
+৩. roles column পড়ে
+৪. role-গুলো আলাদা করে
+৫. Spring Security UserDetails তৈরি করে
+
+Database-এ roles সাধারণত এই ধরনের text হতে পারে:
+
+USER
+ADMIN
+USER;ADMIN
+
+Code-এ role পরিষ্কার করা হয়:
+
+roles.split(";")
+
+যদি role না পাওয়া যায়, default role হিসেবে USER দেওয়া হয়।
+
+তারপর code:
+
+User.withUsername(dbUser.getUsername())
+    .password(dbUser.getPassword())
+    .roles(roles)
+    .build();
+
+গুরুত্বপূর্ণ:
+
+Password database-এ plain text হিসেবে রাখা উচিত নয়।
+এই project PasswordEncoder ব্যবহার করে password যাচাই করে।
+
+
+============================================================
+৩. Login শুরু থেকে token তৈরি হওয়া
+============================================================
+
+Browser থেকে login request যায়:
+
+POST /auth/token
+
+Request body:
+
+{
+  "username": "alice",
+  "password": "alice123"
+}
+
+এই endpoint-এর code:
+
+auth-service/src/main/java/com/example/auth/AuthController.java
+
+Method:
+
+token(LoginRequest request)
+
+প্রথমে code:
+
+authenticationManager.authenticate(...)
+
+চালায়।
+
+এর ভিতরে:
+
+১. DatabaseUserDetailsService user load করে
+২. PostgreSQL-এর password নেয়
+৩. PasswordEncoder password যাচাই করে
+৪. user enabled কি না দেখে
+৫. user-এর authority/role তৈরি করে
+
+Password সঠিক হলে Authentication সফল হয়।
+ভুল হলে login ব্যর্থ হয় এবং token তৈরি হয় না।
+
+তারপর role বের করা হয়:
+
+authentication.getAuthorities()
+
+যেমন:
+
+ROLE_USER -> USER
+ROLE_ADMIN -> ADMIN
+
+তারপর JWT claims তৈরি হয়:
+
+JwtClaimsSet claims = JwtClaimsSet.builder()
+        .issuer("auth-service")
+        .issuedAt(now)
+        .expiresAt(expiry)
+        .subject(request.username())
+        .claim("scope", "catalog.read")
+        .claim("roles", roles)
+        .build();
+
+JWT-এর ভিতরে গুরুত্বপূর্ণ তথ্য:
+
+- issuer: auth-service
+- subject: username, যেমন alice
+- issuedAt: token তৈরির সময়
+- expiresAt: token শেষ হওয়ার সময়
+- scope: catalog.read
+- roles: USER অথবা ADMIN
+
+এই project-এ token-এর মেয়াদ ১ ঘণ্টা:
+
+Instant expiry = now.plus(1, ChronoUnit.HOURS);
+
+JWT HS256 algorithm এবং shared secret দিয়ে sign করা হয়।
+
+JWT তৈরির code:
+
+auth-service/src/main/java/com/example/auth/SecurityConfig.java
+
+JwtEncoder bean NimbusJwtEncoder ব্যবহার করে token sign করে।
+
+Login সফল হলে response:
+
+{
+  "access_token": "eyJ...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "roles": ["USER"]
+}
+
+
+============================================================
+৪. Browser token কীভাবে ব্যবহার করে?
+============================================================
+
+Browser token memory-তে রাখে এবং পরের protected request-এ header যোগ করে:
+
+Authorization: Bearer eyJ...
+
+Frontend code:
+
+api-gateway/src/main/resources/static/app.js
+
+authHeaders() method token পাঠায়:
+
+{
+  Authorization: `Bearer ${accessToken}`
+}
+
+উদাহরণ:
+
+GET /orders/user/alice
+Authorization: Bearer <JWT>
+
+অথবা:
+
+POST /orders/checkout
+Authorization: Bearer <JWT>
+
+
+============================================================
+৫. Gateway কীভাবে JWT যাচাই করে?
+============================================================
+
+Gateway-এর code:
+
+api-gateway/src/main/java/com/example/gateway/ApiGatewayApplication.java
+
+Gateway resource server হিসেবে configure করা হয়েছে:
+
+.oauth2ResourceServer(spec -> spec.jwt(...))
+
+Gateway request পাওয়ার পরে:
+
+১. Authorization header খোঁজে
+২. Bearer token আলাদা করে
+৩. JWT signature যাচাই করে
+৪. shared secret দিয়ে token decode করে
+৫. token expire হয়েছে কি না দেখে
+৬. claims পড়ে
+৭. roles-কে Spring authority-তে convert করে
+
+JWT decoder:
+
+NimbusReactiveJwtDecoder.withSecretKey(key).build();
+
+এখানে auth-service এবং gateway-তে একই:
+
+security.jwt.secret
+
+ব্যবহার করতে হবে। Secret আলাদা হলে gateway token verify করতে পারবে না।
+
+
+============================================================
+৬. roles কীভাবে Spring authority হয়?
+============================================================
+
+JWT-এর ভিতরে role থাকে:
+
+"roles": ["USER"]
+
+Gateway-এর converter এটিকে Spring authority-তে পরিবর্তন করে:
+
+USER -> ROLE_USER
+ADMIN -> ROLE_ADMIN
+
+Code:
+
+roleAuthorities.add(
+    new SimpleGrantedAuthority("ROLE_" + role.trim().toUpperCase())
+);
+
+এই কারণে gateway-তে:
+
+.hasRole("ADMIN")
+
+লিখলে Spring আসলে ROLE_ADMIN authority খোঁজে।
+
+আবার:
+
+.hasAnyRole("USER", "ADMIN")
+
+মানে ROLE_USER অথবা ROLE_ADMIN থাকলেই request অনুমোদিত হবে।
+
+Gateway log:
+
+JWT mapped for sub=alice roles=[USER]
+
+এর অর্থ gateway token decode করে alice-এর USER role পেয়েছে।
+
+
+============================================================
+৭. কোন URL-এ কোন role লাগবে?
+============================================================
+
+Gateway security rules:
+
+Public URL:
+
+- /
+- /index.html
+- /styles.css
+- /app.js
+- /auth/**
+- /actuator/health
+- /health/**
+
+এই URL-গুলোর জন্য JWT প্রয়োজন নেই।
+
+Admin-only URL:
+
+- /catalog/admin/**
+- /inventory/admin/**
+- /orders/admin/**
+- /payments/admin/**
+- /notifications/admin/**
+
+এই URL-গুলোর জন্য ADMIN role প্রয়োজন:
+
+.hasRole("ADMIN")
+
+User অথবা Admin URL:
+
+- /catalog/**
+- /inventory/**
+- /cart/**
+- /orders/**
+- /payments/**
+- /notifications/**
+
+এই URL-গুলোর জন্য USER অথবা ADMIN role প্রয়োজন:
+
+.hasAnyRole("USER", "ADMIN")
+
+অন্য কোনো URL:
+
+.anyExchange().authenticated()
+
+অর্থাৎ valid JWT থাকলেই চলবে, কিন্তু token ছাড়া চলবে না।
+
+
+============================================================
+৮. USER এবং ADMIN request-এর উদাহরণ
+============================================================
+
+USER alice login করলে token-এ থাকতে পারে:
+
+"roles": ["USER"]
+
+alice করতে পারবে:
+
+- Catalog দেখা
+- Inventory দেখা
+- Cart দেখা
+- Checkout করা
+- নিজের order দেখা
+
+alice করতে পারবে না:
+
+- Product create করা
+- Inventory restock করা
+- সব order দেখা
+- Payment admin statistics দেখা
+
+ADMIN user login করলে token-এ থাকতে পারে:
+
+"roles": ["ADMIN"]
+
+ADMIN সাধারণত admin endpoint ব্যবহার করতে পারবে।
+`hasAnyRole("USER", "ADMIN")` দেওয়া সাধারণ endpoint-ও ব্যবহার করতে পারবে।
+
+
+============================================================
+৯. Request-এর সম্পূর্ণ end-to-end flow
+============================================================
+
+ধরা যাক alice checkout করছে।
+
+ধাপ ১: Login
+
+Browser -> Gateway -> Auth Service
+
+Auth Service:
+
+- PostgreSQL থেকে alice খোঁজে
+- password verify করে
+- roles=[USER] বের করে
+- JWT তৈরি করে
+- Browser-এ ফেরত দেয়
+
+ধাপ ২: Checkout request
+
+Browser -> Gateway:
+
+POST /orders/checkout
+Authorization: Bearer <JWT>
+
+ধাপ ৩: Gateway security
+
+Gateway:
+
+- JWT signature verify করে
+- expiry verify করে
+- roles=[USER] পড়ে
+- ROLE_USER authority তৈরি করে
+- /orders/** USER-এর জন্য allowed দেখে
+
+ধাপ ৪: Gateway routing
+
+Gateway request পাঠায়:
+
+http://order-service:8087/api/orders/checkout
+
+ধাপ ৫: Order workflow
+
+Order Service:
+
+- Cart Service-এ HTTP call করে
+- Inventory Service-এ HTTP call করে
+- Payment Service-এ HTTP call করে
+- সফল হলে order PostgreSQL-এ save করে
+- তারপর Kafka event পাঠায়
+
+ধাপ ৬: Downstream calls
+
+Order Service log:
+
+HTTP CALL START
+HTTP CALL COMPLETE
+
+এগুলো দেখে বোঝা যায় কোন service-এ request গেল, status কী হলো এবং কত সময় লাগল।
+
+ধাপ ৭: Gateway response
+
+সব কাজ সফল হলে:
+
+POST /orders/checkout status=200
+
+Browser order confirmation পায়।
+
+
+============================================================
+১০. 401 এবং 403-এর পার্থক্য
+============================================================
+
+401 Unauthorized মানে:
+
+- Token দেওয়া হয়নি
+- Token ভুল
+- Token expired
+- Token signature মেলেনি
+
+উদাহরণ:
+
+Authorization header না পাঠিয়ে /orders/checkout call করা।
+
+403 Forbidden মানে:
+
+- Token valid
+- User authenticated
+- কিন্তু প্রয়োজনীয় role নেই
+
+উদাহরণ:
+
+USER দিয়ে:
+
+POST /inventory/admin/restock
+
+চালালে 403 হতে পারে, কারণ ADMIN role প্রয়োজন।
+
+
+============================================================
+১১. বর্তমান design-এর গুরুত্বপূর্ণ বিষয়
+============================================================
+
+বর্তমানে JWT role authorization মূলত api-gateway-এ enforce করা হচ্ছে।
+
+অর্থাৎ browser/API client-এর জন্য ব্যবহার করতে হবে:
+
+http://localhost:8090
+
+সরাসরি এই port-গুলোতে request না করাই ভালো:
+
+- 8081 auth
+- 8082 catalog
+- 8083 inventory
+- 8085 cart
+- 8086 payment
+- 8087 order
+- 8088 notifications
+
+কারণ downstream services-এ আলাদা JWT resource-server security filter বর্তমানে
+যোগ করা নেই। Docker network-এর ভিতরের service-to-service calls trusted internal
+workflow হিসেবে চলছে।
+
+Production environment-এ প্রতিটি downstream service-এও JWT validation যোগ করা
+উচিত, যাতে কেউ gateway bypass করে সরাসরি service port-এ access করতে না পারে।
+
+
+============================================================
+১২. কোন logs দেখে authentication বোঝা যাবে?
+============================================================
+
+Auth Service:
+
+Token request received for username=alice
+Loaded user=alice from PostgreSQL (roles=USER)
+Token issued for username=alice roles=[USER]
+
+Gateway:
+
+JWT mapped for sub=alice roles=[USER]
+Gateway request ... status=200
+
+Admin access হলে gateway-তে role mapping দেখে নিন:
+
+JWT mapped for sub=admin roles=[ADMIN]
+
+401/403 হলে gateway logs দেখুন।
+
+
+============================================================
+১৩. Token নিজে দেখতে চাইলে
+============================================================
+
+Browser-এর GUI login-এর পরে API Console-এ token দেখা যায়।
+
+JWT তিন অংশের:
+
+header.payload.signature
+
+Payload-এ সাধারণত দেখা যায়:
+
+- sub
+- roles
+- scope
+- iat
+- exp
+- iss
+
+Signature পরিবর্তন করা যাবে না। Payload decode করা গেলেও payload পরিবর্তন করলে
+signature আর মেলবে না এবং gateway token reject করবে।
+
+
+============================================================
+১৪. নিরাপত্তা সংক্রান্ত সতর্কতা
+============================================================
+
+- Demo secret source code-এ রাখা হয়েছে; production-এ environment secret ব্যবহার করুন।
+- JWT token log করবেন না।
+- Password log করবেন না।
+- Shared secret auth-service ও gateway-তে একই থাকতে হবে।
+- Token-এর মেয়াদ শেষ হলে নতুন করে login করতে হবে।
+- Admin role শুধু প্রয়োজনীয় user-কে দিন।
+- Browser থেকে সবসময় gateway port ব্যবহার করুন।
+
+
+============================================================
+১৫. মনে রাখার সহজ formula
+============================================================
+
+Login:
+
+User + Password
+    -> PostgreSQL
+    -> Authentication
+    -> JWT with roles
+
+প্রতিটি protected request:
+
+Bearer JWT
+    -> Gateway signature check
+    -> Role check
+    -> Route allowed বা denied
+
+Role rule:
+
+USER  -> সাধারণ customer কাজ
+ADMIN -> admin কাজ + সাধারণ কাজ
+
+শেষ কথা:
+
+Auth Service token বানায়।
+Gateway token যাচাই করে।
+Gateway role অনুযায়ী access দেয়।
+তারপর request সঠিক microservice-এ যায়।
+
