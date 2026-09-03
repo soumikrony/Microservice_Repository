@@ -1,5 +1,5 @@
 {
-  "id" : "1a3ea1bf-af1e-4798-b111-2499200c8ace",
+  "id" : "db49a4fc-3c0d-498a-af67-5bfff4bd9c35",
   "request" : {
     "url" : "/api/payments/charge",
     "method" : "POST",
@@ -26,5 +26,5 @@
     },
     "transformers" : [ "response-template", "spring-cloud-contract" ]
   },
-  "uuid" : "1a3ea1bf-af1e-4798-b111-2499200c8ace"
+  "uuid" : "db49a4fc-3c0d-498a-af67-5bfff4bd9c35"
 }

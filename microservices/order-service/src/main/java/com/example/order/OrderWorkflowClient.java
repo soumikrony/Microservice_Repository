@@ -9,13 +9,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.service.annotation.DeleteExchange;
-import org.springframework.web.service.annotation.GetExchange;
-import org.springframework.web.service.annotation.HttpExchange;
-import org.springframework.web.service.annotation.PostExchange;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 @Component
 public class OrderWorkflowClient {
@@ -67,24 +67,24 @@ public class OrderWorkflowClient {
     }
 }
 
-@HttpExchange(accept = "application/json")
+@FeignClient(name = "inventory-service")
 interface InventoryHttpClient {
-    @PostExchange("/api/inventory/reserve")
+    @PostMapping(value = "/api/inventory/reserve", consumes = "application/json")
     Map<String, Object> reserve(@RequestBody Map<String, Object> request);
-    @PostExchange("/api/inventory/release")
+    @PostMapping(value = "/api/inventory/release", consumes = "application/json")
     Map<String, Object> release(@RequestBody Map<String, Object> request);
 }
 
-@HttpExchange(accept = "application/json")
+@FeignClient(name = "payment-service")
 interface PaymentHttpClient {
-    @PostExchange("/api/payments/charge")
+    @PostMapping(value = "/api/payments/charge", consumes = "application/json")
     Map<String, Object> charge(@RequestBody Map<String, Object> request);
 }
 
-@HttpExchange(accept = "application/json")
+@FeignClient(name = "cart-service")
 interface CartHttpClient {
-    @DeleteExchange("/api/cart/{userId}/clear")
+    @DeleteMapping("/api/cart/{userId}/clear")
     void clear(@PathVariable String userId);
-    @GetExchange("/api/cart/{userId}")
+    @GetMapping("/api/cart/{userId}")
     Map<String, Object> get(@PathVariable String userId);
 }

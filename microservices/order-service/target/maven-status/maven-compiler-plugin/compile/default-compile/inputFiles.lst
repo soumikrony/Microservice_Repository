@@ -1,5 +1,6 @@
 C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\ClientConfig.java
 C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\KafkaEventSchemas.java
+C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\LoggingAspect.java
 C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\OrderController.java
 C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\OrderRecordEntity.java
 C:\Softwares\Self Project\microservices\order-service\src\main\java\com\example\order\OrderRecordRepository.java

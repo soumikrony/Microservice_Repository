@@ -6,14 +6,20 @@ receivers:
 
 exporters:
   debug:
-    verbosity: basic
+    verbosity: detailed
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 50
 
 service:
   pipelines:
     metrics:
       receivers: [otlp]
+      processors: [batch]
       exporters: [debug]
     traces:
       receivers: [otlp]
+      processors: [batch]
       exporters: [debug]
-

@@ -2,6 +2,7 @@ com\example\order\OrderWorkflowClient.class
 com\example\order\OrderRecordRepository.class
 com\example\order\OrderController$CheckoutRequest.class
 com\example\order\InventoryHttpClient.class
+com\example\order\LoggingAspect.class
 com\example\order\ClientConfig.class
 com\example\order\OrderController.class
 com\example\order\KafkaEventSchemas.class

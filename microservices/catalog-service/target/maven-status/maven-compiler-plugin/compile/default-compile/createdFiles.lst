@@ -1,3 +1,4 @@
+com\example\catalog\LoggingAspect.class
 com\example\catalog\ProductEntity.class
 com\example\catalog\CatalogController$ProductRequest.class
 com\example\catalog\CatalogServiceApplication.class

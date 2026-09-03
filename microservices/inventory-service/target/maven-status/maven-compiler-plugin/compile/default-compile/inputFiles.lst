@@ -3,4 +3,5 @@ C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\exam
 C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\example\inventory\InventoryItemRepository.java
 C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\example\inventory\InventoryServiceApplication.java
 C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\example\inventory\KafkaEventSchemas.java
+C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\example\inventory\LoggingAspect.java
 C:\Softwares\Self Project\microservices\inventory-service\src\main\java\com\example\inventory\TraceIdFilter.java

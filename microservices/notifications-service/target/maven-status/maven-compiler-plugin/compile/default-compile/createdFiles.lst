@@ -1,4 +1,5 @@
 com\example\notifications\TraceIdFilter.class
 com\example\notifications\NotificationController.class
 com\example\notifications\KafkaEventSchemas.class
+com\example\notifications\LoggingAspect.class
 com\example\notifications\NotificationsServiceApplication.class

@@ -1,6 +1,7 @@
 com\example\payment\PaymentRecordRepository.class
 com\example\payment\PaymentServiceApplication.class
 com\example\payment\PaymentController$PaymentRequest.class
+com\example\payment\LoggingAspect.class
 com\example\payment\PaymentRecordEntity.class
 com\example\payment\PaymentController$PaymentRecord.class
 com\example\payment\TraceIdFilter.class

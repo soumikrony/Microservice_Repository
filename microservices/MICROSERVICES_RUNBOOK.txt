@@ -48,7 +48,6 @@ Expected:
 
 Stop-Service Redis -Force
 Start-Service Memurai
-
 redis-cli -h 127.0.0.1 -p 6379 PING
 redis-cli -h 127.0.0.1 -p 6379 INFO server | findstr redis_version
 
@@ -100,7 +99,19 @@ UI:
 
   http://localhost:8090/
 
+Recreate and Deploy A particular Service Image into Docker Container
+
+cd "C:\Softwares\Self Project\microservices"
+
+docker compose -f docker-compose.app.yml up -d --build --no-deps order-service
+
 কোনো service-এর log:
+
+  docker compose --ansi always -f docker-compose.app.yml logs -f --tail 0 |
+    Select-String -Pattern '^(?!.*shopsphere-otel-collector).*|shopsphere-otel-collector.*(Traces|Span|Name:|Duration:|service.name|http.route)'
+
+docker compose --ansi always -f docker-compose.app.yml logs -f --tail 0 |
+    Select-String -NotMatch 'shopsphere-otel-collector'
 
   docker compose -f docker-compose.app.yml logs -f service-name
 

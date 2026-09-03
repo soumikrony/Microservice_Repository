@@ -1,9 +1,10 @@
 com\example\inventory\TraceIdFilter.class
-com\example\inventory\InventoryItemEntity.class
 com\example\inventory\InventoryController$ReserveRequest.class
+com\example\inventory\InventoryItemRepository.class
+com\example\inventory\LoggingAspect.class
+com\example\inventory\KafkaEventSchemas.class
+com\example\inventory\InventoryItemEntity.class
 com\example\inventory\InventoryController$RestockRequest.class
 com\example\inventory\InventoryServiceApplication.class
 com\example\inventory\InventoryController$ReleaseRequest.class
 com\example\inventory\InventoryController.class
-com\example\inventory\InventoryItemRepository.class
-com\example\inventory\KafkaEventSchemas.class
