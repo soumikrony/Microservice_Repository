@@ -285,3 +285,24 @@ Registration দেখুন:
 PAYMENT-SERVICE, ORDER-SERVICE, NOTIFICATIONS-SERVICE এবং API-GATEWAY দেখা উচিত।
 Eureka বন্ধ করতে পুরো Compose application বন্ধ করুন:
   docker compose -f docker-compose.app.yml down
+Swagger / OpenAPI REST API Documentation
+========================================
+
+প্রতিটি REST service-এর Swagger UI browser-এ endpoint দেখা এবং Try it out করার জন্য:
+
+  API Gateway:           http://localhost:8090/swagger-ui.html
+  Auth Service:          http://localhost:8081/swagger-ui.html
+  Catalog Service:       http://localhost:8082/swagger-ui.html
+  Inventory Service:     http://localhost:8083/swagger-ui.html
+  Cart Service:          http://localhost:8085/swagger-ui.html
+  Payment Service:       http://localhost:8086/swagger-ui.html
+  Order Service:         http://localhost:8087/swagger-ui.html
+  Notifications Service: http://localhost:8088/swagger-ui.html
+
+Swagger UI endpoint list দেখায়। Protected API test করতে আগে `/auth/token` থেকে JWT
+নিন এবং Swagger-এর Authorize button-এ `Bearer <token>` দিন।
+
+Swagger dependency যোগ/পরিবর্তনের পরে সব service নতুন image দিয়ে চালাতে:
+
+  mvn clean package -DskipTests
+  docker compose -f docker-compose.app.yml up --build -d

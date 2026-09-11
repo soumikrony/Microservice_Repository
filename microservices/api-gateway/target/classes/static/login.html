@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShopSphere Login</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="auth-page">
+  <main class="auth-card">
+    <p class="chip">Microservices Commerce Suite</p>
+    <h1>ShopSphere Login</h1>
+    <p class="hint">Sign in to open the Control Center.</p>
+    <form id="loginForm" class="auth-form">
+      <label>Username<input id="username" value="alice" autocomplete="username" required /></label>
+      <label>Password<input id="password" type="password" value="alice123" autocomplete="current-password" required /></label>
+      <button type="submit">Login</button>
+    </form>
+    <p id="loginMessage" class="form-message" role="alert"></p>
+    <p class="hint">Users are loaded from PostgreSQL table <code>auth_users</code>.</p>
+  </main>
+  <script src="/login.js"></script>
+</body>
+</html>

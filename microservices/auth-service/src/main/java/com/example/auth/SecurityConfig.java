@@ -43,7 +43,8 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/token", "/actuator/health", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/auth/token", "/actuator/health", "/actuator/prometheus",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 .build();
     }

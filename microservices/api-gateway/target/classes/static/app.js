@@ -4,7 +4,6 @@ const roleState = document.getElementById("roleState");
 const serviceStatusGrid = document.getElementById("serviceStatusGrid");
 const kafkaStatus = document.getElementById("kafkaStatus");
 const kafkaNotificationsGrid = document.getElementById("kafkaNotificationsGrid");
-const tokenBox = document.getElementById("tokenBox");
 const apiLog = document.getElementById("apiLog");
 const customerView = document.getElementById("customerView");
 const adminView = document.getElementById("adminView");
@@ -21,9 +20,12 @@ const serviceHealthChecks = [
   { label: "Notifications", path: "/health/notifications" }
 ];
 
-let accessToken = "";
+const TOKEN_KEY = "shopsphere.accessToken";
+const EXPIRY_KEY = "shopsphere.tokenExpiry";
+let accessToken = localStorage.getItem(TOKEN_KEY) || "";
 let claims = {};
 let kafkaPollTimer = null;
+let expiryTimer = null;
 let monitoringState = { prometheus: false, grafana: false, otel: false };
 const kafkaSnapshots = {
   paymentOrderEvents: [],
@@ -40,6 +42,38 @@ function parseJwtClaims(jwt) {
   } catch {
     return {};
   }
+}
+
+function clearSession() {
+  accessToken = "";
+  claims = {};
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EXPIRY_KEY);
+  if (expiryTimer) clearTimeout(expiryTimer);
+}
+
+function scheduleTokenExpiry() {
+  const expiry = Number(localStorage.getItem(EXPIRY_KEY) || 0);
+  if (expiryTimer) clearTimeout(expiryTimer);
+  if (!expiry || expiry <= Date.now()) {
+    clearSession();
+    window.location.replace("/login.html?expired=1");
+    return;
+  }
+  expiryTimer = setTimeout(() => {
+    clearSession();
+    window.location.replace("/login.html?expired=1");
+  }, Math.max(0, expiry - Date.now()));
+}
+
+function requireSession() {
+  if (!accessToken) {
+    window.location.replace("/login.html");
+    return false;
+  }
+  claims = parseJwtClaims(accessToken);
+  scheduleTokenExpiry();
+  return true;
 }
 
 function roles() {
@@ -107,6 +141,14 @@ function setLog(message, data) {
   apiLog.textContent = data ? `${message}\n${JSON.stringify(data, null, 2)}` : message;
 }
 
+function showActionModal(title, data, isError = false) {
+  const modal = document.getElementById("actionModal");
+  document.getElementById("actionModalTitle").textContent = title;
+  document.getElementById("actionModalBody").textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  modal.classList.toggle("error-modal", isError);
+  modal.showModal();
+}
+
 function renderTable(data) {
   if (!Array.isArray(data) || !data.length) {
     return "<p>No records found.</p>";
@@ -123,6 +165,9 @@ function updateAuthUi() {
   const r = roles();
   roleState.textContent = r.length ? r.join(",") : "None";
   roleState.style.color = r.length ? "#1d9e75" : "#c84545";
+  document.getElementById("sessionUser").textContent = currentUser() || "Unknown";
+  const expiry = Number(localStorage.getItem(EXPIRY_KEY) || 0);
+  document.getElementById("sessionExpiry").textContent = expiry ? new Date(expiry).toLocaleString() : "Unknown";
 
   document.getElementById("loadProductsBtn").disabled = !hasRole("USER") && !hasRole("ADMIN");
   document.getElementById("viewCartBtn").disabled = !hasRole("USER") && !hasRole("ADMIN");
@@ -136,6 +181,7 @@ function updateAuthUi() {
 }
 
 async function api(path, options = {}) {
+  if (!requireSession()) throw new Error("Login required");
   const headers = { ...authHeaders(), ...(options.headers || {}) };
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
@@ -323,8 +369,10 @@ async function loadProducts() {
         <button onclick='addToCart(${JSON.stringify(p)})'>Add to Cart</button>
       </div>`).join("")}</div>`;
     setLog("Catalog loaded", products);
+    showActionModal("Catalog loaded", `${products.length} product(s) found.`);
   } catch (err) {
     setLog("Failed to load catalog", { error: err.message });
+    showActionModal("Catalog request failed", err.message, true);
   }
 }
 
@@ -341,8 +389,10 @@ window.addToCart = async function addToCart(product) {
       })
     });
     setLog("Item added to cart", result);
+    showActionModal("Added to cart", result);
   } catch (err) {
     setLog("Add to cart failed", { error: err.message });
+    showActionModal("Add to cart failed", err.message, true);
   }
 };
 
@@ -352,8 +402,10 @@ async function viewCart() {
     const items = cart.items || [];
     customerView.innerHTML = `${renderTable(items)}<p><strong>Total:</strong> $${cart.total ?? 0}</p>`;
     setLog("Cart loaded", cart);
+    showActionModal("Cart loaded", cart);
   } catch (err) {
     setLog("Cart load failed", { error: err.message });
+    showActionModal("Cart request failed", err.message, true);
   }
 }
 
@@ -372,8 +424,10 @@ async function checkout() {
       createdAt: order.createdAt
     }]);
     setLog("Checkout successful", order);
+    showActionModal("Checkout successful", order);
   } catch (err) {
     setLog("Checkout failed", { error: err.message });
+    showActionModal("Checkout failed", err.message, true);
   }
 }
 
@@ -387,8 +441,10 @@ async function myOrders() {
       createdAt: o.createdAt
     })));
     setLog("Loaded user orders", orders);
+    showActionModal("My orders loaded", `${orders.length} order(s) found.`);
   } catch (err) {
     setLog("Load my orders failed", { error: err.message });
+    showActionModal("My orders request failed", err.message, true);
   }
 }
 
@@ -432,42 +488,15 @@ async function observabilitySnapshot() {
   }
 }
 
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    const data = await api("/auth/token", {
-      method: "POST",
-      headers: {},
-      body: JSON.stringify({
-        username: document.getElementById("username").value.trim(),
-        password: document.getElementById("password").value
-      })
-    });
-    accessToken = data.access_token || "";
-    claims = parseJwtClaims(accessToken);
-    tokenBox.textContent = JSON.stringify({ token: data, claims }, null, 2);
-    setLog("Login success", data);
-    startKafkaPolling();
-  } catch (err) {
-    accessToken = "";
-    claims = {};
-    tokenBox.textContent = "Login failed.";
-    setLog("Login failed", { error: err.message });
-    stopKafkaPolling();
-  }
-  updateAuthUi();
-});
-
 document.getElementById("logoutBtn").addEventListener("click", () => {
-  accessToken = "";
-  claims = {};
-  tokenBox.textContent = "No token.";
+  clearSession();
   customerView.innerHTML = "";
   adminView.innerHTML = "";
   setLog("Logged out");
   stopKafkaPolling();
-  updateAuthUi();
+  window.location.replace("/logout.html");
 });
+document.getElementById("closeModalBtn").addEventListener("click", () => document.getElementById("actionModal").close());
 
 document.getElementById("loadProductsBtn").addEventListener("click", loadProducts);
 document.getElementById("viewCartBtn").addEventListener("click", viewCart);
@@ -512,9 +541,12 @@ document.getElementById("restockForm").addEventListener("submit", async (e) => {
   }
 });
 
+if (!requireSession()) throw new Error("Login required");
+claims = parseJwtClaims(accessToken);
 refreshServiceBoard();
 setInterval(refreshServiceBoard, 10000);
 updateAuthUi();
+startKafkaPolling();
 stopKafkaPolling();
 renderMonitoringState();
 

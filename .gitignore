@@ -1,0 +1,11 @@
+microservices/api-gateway/target/api-gateway-1.0.0.jar
+microservices/auth-service/target/auth-service-1.0.0.jar
+microservices/catalog-service/target/catalog-service-1.0.0.jar
+microservices/config-server/target/config-server-1.0.0.jar
+microservices/eureka-server/target/eureka-server-1.0.0.jar
+microservices/inventory-service/target/inventory-service-1.0.0.jar
+microservices/notifications-service/target/notifications-service-1.0.0.jar
+microservices/order-service/target/order-service-1.0.0.jar
+microservices/payment-service/target/payment-service-1.0.0-stubs.jar
+microservices/payment-service/target/payment-service-1.0.0.jar
+microservices/cart-service/target/cart-service-1.0.0.jar

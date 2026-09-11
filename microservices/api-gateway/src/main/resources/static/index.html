@@ -45,16 +45,12 @@
       <p id="monitoringControlStatus" class="hint">Controller status unknown.</p>
     </section>
 
-    <section class="panel">
-      <h2>Sign In</h2>
-      <form id="loginForm" class="grid2">
-        <label>Username<input id="username" value="alice" required /></label>
-        <label>Password<input id="password" type="password" value="alice123" required /></label>
-        <button type="submit">Login & Fetch Token</button>
-        <button id="logoutBtn" type="button" class="ghost">Logout</button>
-      </form>
-      <p class="hint">JWT login users come from PostgreSQL via <code>auth_users</code>. Default users are seeded on startup.</p>
-      <pre id="tokenBox" class="console">No token.</pre>
+    <section class="panel session-panel">
+      <div>
+        <h2>Active Session</h2>
+        <p class="hint">Signed in as <strong id="sessionUser">Unknown</strong>. Token expiry: <strong id="sessionExpiry">Unknown</strong></p>
+      </div>
+      <button id="logoutBtn" type="button" class="ghost">Logout</button>
     </section>
 
     <section class="panel">
@@ -101,6 +97,10 @@
     </section>
   </main>
 
+  <dialog id="actionModal" class="action-modal">
+    <div class="modal-heading"><h2 id="actionModalTitle">Response</h2><button id="closeModalBtn" class="ghost" type="button">Close</button></div>
+    <pre id="actionModalBody" class="console"></pre>
+  </dialog>
   <script src="/app.js"></script>
 </body>
 </html>

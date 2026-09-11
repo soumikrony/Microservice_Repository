@@ -132,7 +132,8 @@ public class ApiGatewayApplication {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/", "/index.html", "/styles.css", "/app.js", "/favicon.ico").permitAll()
+                        .pathMatchers("/", "/index.html", "/login.html", "/logout.html", "/styles.css", "/app.js", "/login.js", "/favicon.ico",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .pathMatchers("/auth/**", "/actuator/health", "/actuator/prometheus", "/health/**").permitAll()
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
                         .pathMatchers("/catalog/admin/**", "/inventory/admin/**", "/orders/admin/**",
