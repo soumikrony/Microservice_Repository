@@ -31,6 +31,7 @@ services:
     build: ./auth-service
     container_name: shopsphere-auth-service
     environment:
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in microservices/.env}
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka
       CONFIG_SERVER_URL: http://config-server:8888
       OTEL_METRICS_EXPORT_ENABLED: "true"
@@ -38,8 +39,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -57,8 +58,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -76,8 +77,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -97,8 +98,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -116,8 +117,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -144,8 +145,8 @@ services:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in microservices/.env}
       SPRING_DATA_REDIS_HOST: host.docker.internal
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_CACHE_TYPE: redis
@@ -191,6 +192,7 @@ services:
       notifications-service:
         condition: service_started
     environment:
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in microservices/.env}
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka
       CONFIG_SERVER_URL: http://config-server:8888
       OTEL_METRICS_EXPORT_ENABLED: "true"

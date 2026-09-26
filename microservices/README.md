@@ -1,265 +1,93 @@
-# ShopSphere Microservices Platform
+# ShopSphere Microservices
 
-This project is a Spring Boot learning setup for:
+This repository contains a Java 25 / Spring Boot 3.5.0 sample composed of ten Maven modules. It demonstrates a small shopping workflow with synchronous REST calls and Kafka events. It is a learning project, not a production deployment claim.
 
-- PostgreSQL for business data persistence
-- Kafka + Avro + Schema Registry for service-to-service communication
-- Redis for caching
-- JWT authentication for secured API access
-- Spring Cloud Gateway as the browser entry point
-- Docker Desktop for containerized execution
+## Services
 
-It can be run in two recommended ways:
+| Module | Responsibility | Local port |
+|---|---|---:|
+| `api-gateway` | Browser entry point, routing, JWT validation | 8090 on host → 8080 in container |
+| `auth-service` | Authentication and user lookup | 8081 |
+| `catalog-service` | Product catalog | 8082 |
+| `inventory-service` | Stock and inventory events | 8083 |
+| `cart-service` | Cart operations | 8085 |
+| `payment-service` | Payment workflow and events | 8086 |
+| `order-service` | Checkout orchestration and compensation | 8087 |
+| `notifications-service` | Consumes workflow events | 8088 |
+| `config-server` | Centralized application configuration | 8888 |
+| `eureka-server` | Service discovery | 8761 |
 
-- locally from Eclipse or terminal
-- fully inside Docker Desktop with Docker Compose
+PostgreSQL, Redis, Kafka, and Schema Registry are external local prerequisites. The application Compose file does not provision them. Its containers connect through `host.docker.internal`; Kafka is expected on the Docker-host listener at `29092`, and Schema Registry at `8084`.
 
-## Runtime services
+## Event flow
 
-1. api-gateway: 8080
-2. auth-service: 8081
-3. catalog-service: 8082
-4. inventory-service: 8083
-5. cart-service: 8085
-6. payment-service: 8086
-7. order-service: 8087
-8. notifications-service: 8088
-9. kafka (KRaft mode): 9092
+The documented checkout flow is:
 
-## Login users (PostgreSQL + Redis/simple cache)
+1. `order-service` publishes `orders.created`.
+2. `payment-service` and `inventory-service` consume the order event with deduplication.
+3. `payment-service` publishes `payments.processed`; `order-service` correlates the result.
+4. `notifications-service` consumes order, payment, and failure events.
+5. A payment failure triggers inventory compensation and an `orders.failed` event.
 
-- Auth users are loaded from PostgreSQL table `auth_users`.
-- Default bootstrap users are inserted by `auth-service/src/main/resources/data.sql`.
-- Credentials:
-  - `alice / alice123` (USER)
-  - `admin / admin123` (USER, ADMIN)
+Avro serialization and Confluent Schema Registry are used for the Kafka payloads. The code and docs also include idempotency handling, Resilience4j policies, Prometheus metrics, OTEL export configuration, and a Spring Cloud Contract test scaffold. These are repository features; this README makes no throughput or production-reliability claim.
 
-Connection defaults:
-- DB: `jdbc:postgresql://localhost:5432/postgres`
-- Username: `postgres`
-- Password: `12345`
-- Redis: `redis:6379` in Kubernetes (`localhost:6379` fallback for local)
-- Schema Registry: `http://localhost:8084` for local
-- Kafka bootstrap server: `localhost:9092` for local
+## Versions and dependencies
 
-## Local build
-```bash
-mvn clean package -DskipTests
-```
+- Java release: 25
+- Spring Boot: 3.5.0
+- Spring Cloud: 2025.0.0
+- Avro: 1.12.0
+- PostgreSQL/JPA, Redis, Kafka/Avro, JWT/OAuth2 resource server, Docker Compose, Actuator, Prometheus, OpenTelemetry, Resilience4j
 
-## What is persisted in PostgreSQL
+## Configure local credentials
 
-These tables are created from each service's `schema.sql` when that service starts:
-
-- `auth_users`
-- `catalog_products`
-- `inventory_items`
-- `cart_items`
-- `payment_records`
-- `order_records`
-
-Default seed data is provided for:
-
-- `auth_users`
-- `catalog_products`
-- `inventory_items`
-
-## Start local infrastructure with Docker Desktop
-
-This is the easiest way to test PostgreSQL, Redis, Kafka, and Schema Registry together:
+Copy the example file and set values for your local-only services:
 
 ```powershell
-docker compose -f docker-compose.learning.yml up -d
+Copy-Item .env.example .env
+notepad .env
 ```
 
-Check that the containers are healthy:
+Generate a fresh JWT signing value rather than reusing a repository or production value:
 
 ```powershell
-docker ps
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-## Run the microservices locally from terminal
+The `.env` file is ignored by Git. Do not paste its values into issues, commits, screenshots, or public configuration. Each service requires `SPRING_DATASOURCE_PASSWORD`; the auth service and gateway also require the same `JWT_SECRET`.
 
-Build first:
+## Build and run
+
+Start PostgreSQL on 5432, Redis on 6379, Kafka on the expected local listener (9092 for local clients and 29092 for Docker clients), and Schema Registry on 8084. Confirm the services are reachable before proceeding.
+
+From the repository root:
 
 ```powershell
-mvn clean package -DskipTests
+mvn -f microservices/pom.xml clean package -DskipTests
+docker compose --env-file microservices/.env -f microservices/docker-compose.app.yml up --build -d
+docker compose --env-file microservices/.env -f microservices/docker-compose.app.yml ps
 ```
 
-Then start each service in a separate terminal:
+Open <http://localhost:8090/>. The host gateway port is 8090; its container port is 8080.
+
+Stop the application containers with:
 
 ```powershell
-java -jar .\auth-service\target\auth-service-1.0.0.jar --server.port=8081
-java -jar .\catalog-service\target\catalog-service-1.0.0.jar --server.port=8082
-java -jar .\inventory-service\target\inventory-service-1.0.0.jar --server.port=8083
-java -jar .\cart-service\target\cart-service-1.0.0.jar --server.port=8085
-java -jar .\payment-service\target\payment-service-1.0.0.jar --server.port=8086
-java -jar .\order-service\target\order-service-1.0.0.jar --server.port=8087
-java -jar .\notifications-service\target\notifications-service-1.0.0.jar --server.port=8088
-java -jar .\api-gateway\target\api-gateway-1.0.0.jar --server.port=8090
+docker compose --env-file microservices/.env -f microservices/docker-compose.app.yml down
 ```
 
-Browser UI:
+## Monitoring
 
-- `http://localhost:8090/`
-
-## Run the full microservices system only with Docker Desktop
-
-This mode does not use Kubernetes or Minikube.
-
-1. Build the jars first:
+The OTEL Collector starts with the app stack. Prometheus and Grafana are in a separate Compose file:
 
 ```powershell
-mvn clean package -DskipTests
+docker compose --env-file microservices/.env -f microservices/docker-compose.monitoring.yml up -d
 ```
 
-2. Build and start everything:
+Prometheus: <http://localhost:9090/>. Grafana: <http://localhost:3000/>. The Grafana password comes from `GF_SECURITY_ADMIN_PASSWORD` in the ignored local `.env` file.
 
-```powershell
-docker compose -f docker-compose.app.yml up --build -d
-```
+## Local demo data and security
 
-3. Open the UI:
+SQL seed data exists for local demonstrations. It is not a production account or secret-management mechanism. The README intentionally does not publish sample passwords. Keep production credentials out of this repository and rotate any earlier committed values that were reused outside local development. A new commit removes values from the current tree but does not remove them from older Git commits.
 
-- `http://localhost:8090/`
-
-4. Check running containers:
-
-```powershell
-docker ps
-```
-
-5. Stop everything:
-
-```powershell
-docker compose -f docker-compose.app.yml down
-```
-
-6. Stop and delete containers plus volumes:
-
-```powershell
-docker compose -f docker-compose.app.yml down -v
-```
-
-## Run from Eclipse
-
-1. Import the root folder as `Existing Maven Projects`.
-2. Wait for Maven dependencies to finish downloading.
-3. Start Docker Desktop.
-4. Start learning infrastructure:
-
-```powershell
-docker compose -f docker-compose.learning.yml up -d
-```
-
-5. In Eclipse, run these classes as `Java Application` or `Spring Boot App`:
-
-- `com.example.auth.AuthServiceApplication`
-- `com.example.catalog.CatalogServiceApplication`
-- `com.example.inventory.InventoryServiceApplication`
-- `com.example.cart.CartServiceApplication`
-- `com.example.payment.PaymentServiceApplication`
-- `com.example.order.OrderServiceApplication`
-- `com.example.notifications.NotificationsServiceApplication`
-- `com.example.gateway.ApiGatewayApplication`
-
-6. For `ApiGatewayApplication`, set program arguments:
-
-```text
---server.port=8090
-```
-
-7. If you want explicit environment variables in Eclipse run configs, use:
-
-```text
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/postgres
-SPRING_DATASOURCE_USERNAME=postgres
-SPRING_DATASOURCE_PASSWORD=12345
-SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-SCHEMA_REGISTRY_URL=http://localhost:8084
-SPRING_REDIS_HOST=localhost
-SPRING_REDIS_PORT=6379
-SPRING_CACHE_TYPE=redis
-```
-
-If Redis is not running, set:
-
-```text
-SPRING_CACHE_TYPE=simple
-```
-
-## Learning checklist
-
-Use these to test each technology intentionally:
-
-### PostgreSQL
-
-- Start `auth-service`, `catalog-service`, `inventory-service`, `cart-service`, `payment-service`, `order-service`
-- Verify table creation in PostgreSQL
-- Create catalog items, restock inventory, add cart items, checkout, and inspect persisted rows
-
-### Kafka
-
-- Start Kafka and Schema Registry
-- Start `order-service`, `payment-service`, `inventory-service`, `notifications-service`
-- Perform checkout from the UI
-- Observe:
-  - `orders.created`
-  - `payments.processed`
-  - `orders.failed` on failure paths
-
-### Redis
-
-- Set `SPRING_CACHE_TYPE=redis`
-- Start Redis
-- Hit repeated catalog/cart/order summary endpoints
-- Inspect Redis keys and cached behavior
-
-### JWT
-
-- Start `auth-service` and `api-gateway`
-- Login from the UI using `alice/alice123` or `admin/admin123`
-- Confirm a JWT token is returned
-- Test admin-only actions with `admin`
-
-## Notes
-
-- Local application properties default to localhost-friendly values for PostgreSQL, Redis, Kafka, and Schema Registry.
-- Docker Compose file `docker-compose.app.yml` is the recommended containerized run mode.
-- No Eureka server dependency is used in the active modules.
-
-## Kafka integration use cases
-
-1. Order checkout publishes `orders.created` from `order-service`.
-2. `payment-service` and `inventory-service` consume `orders.created` with event dedupe.
-3. Payment charge publishes `payments.processed`.
-4. `order-service` consumes `payments.processed` for correlation.
-5. If payment fails, `order-service` triggers compensation via `inventory-service` release endpoint and publishes `orders.failed`.
-6. `notifications-service` consumes `orders.created`, `orders.failed`, and `payments.processed`.
-
-Kafka payload format:
-- Avro via Confluent serializer/deserializer.
-- Schema Registry URL: `http://schema-registry:8081`.
-
-### Demo endpoints
-
-1. Trigger checkout: `POST /orders/checkout`
-2. View order events from payment stream: `GET /orders/events/payments`
-3. View payment consumed order events: `GET /payments/events/orders`
-4. View inventory consumed order events: `GET /inventory/events/orders`
-5. View notifications stream: `GET /notifications/admin/events`
-6. View observability snapshot: `GET /notifications/admin/observability`
-
-## Implemented scale-up features
-
-1. Saga-style compensation on checkout failure (release inventory on payment failure).
-2. Clean unversioned API flow (`/checkout`, `/charge`) with idempotency + dedupe.
-3. Idempotency key handling for order and payment write APIs.
-4. Kafka consumer dedupe to avoid duplicate-event side effects.
-5. Resilience4j retry/circuit-breaker/bulkhead on orchestration path.
-6. Prometheus endpoint enabled across services.
-7. OpenTelemetry exporter/tracing properties added for OTLP pipeline.
-8. Kafka moved to KRaft mode.
-9. Redis cache baseline for auth lookups.
-10. Contract-test scaffold in `payment-service` using Spring Cloud Contract.
-
+See the repository root README for the architecture diagram and the full module overview.
